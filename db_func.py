@@ -33,6 +33,17 @@ def create_link(conn, link_data):
     return c.lastrowid
 
 
+def create_word_row(conn, params):
+    sql = f"""
+        INSERT INTO rating_for_page_{params[0]}(word, rating)
+        VALUES({params[1]}, {params[2]})
+    """
+    c = conn.cursor()
+    c.execute(sql)
+    conn.commit()
+    return c.lastrowid
+
+
 def select_all_links(conn):
     c = conn.cursor()
     c.execute('SELECT * FROM links')

@@ -9,7 +9,6 @@ from config import *
 from sql import sql_create_links_table
 import os
 import nltk
-nltk.download('punkt')
 nltk.download("stopwords")
 from nltk.corpus import stopwords
 from nltk.stem.porter import PorterStemmer
@@ -115,6 +114,21 @@ def write_csv(i, words_values):
             csv_writer.writerow([key, words_values[key]])
 
 
+def add_rankings_in_sql(i, words_values):
+    conn = create_connection(DATABASE)
+    if conn is not None:
+        sql_create_ratings_table = f"""
+            CREATE TABLE IF NOT EXISTS rating_for_page_{i} (
+                id integer PRIMARY KEY,
+                word text NOT NULL,
+                rating text
+            )
+        """
+        create_table(conn, sql_create_ratings_table)
+        for key in words_values.keys():
+            create_word_row(conn, (i, key, words_values[key]))
+
+
 def analyse_html_page():
     conn = create_connection(DATABASE)
     if conn is not None:
@@ -151,7 +165,7 @@ def analyse_html_page():
                             words_values[word] += tag_coefficients_in_rating[key]
                         except KeyError:
                             words_values[word] = tag_coefficients_in_rating[key]
-                write_csv(i, words_values)
+                add_rankings_in_sql(i, words_values)
 
 
 def main():
@@ -167,7 +181,7 @@ def main():
     #         link_data = (data.get('path'), data.get('domain'), data.get('protocol'))
     #         lastrowid = create_link(conn, link_data)
     #         print(lastrowid)
-    importing_html_files()
+    # importing_html_files()
     analyse_html_page()
 
 

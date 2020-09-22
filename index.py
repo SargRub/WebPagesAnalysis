@@ -1,6 +1,6 @@
 import requests
 import sys
-import csv
+# import csv
 import chardet
 from urllib.parse import urlparse
 from bs4 import BeautifulSoup
@@ -22,7 +22,7 @@ tag_coefficients_in_rating = {'html': 0.4, 'head': 0.4, 'title': 0.4, 'body': 0.
 def get_content(url):
     try:
         data = requests.get(url)
-        if data.status_code == 200:
+        if data.status_code // 100 == 2:
             soup = BeautifulSoup(data.text, 'html.parser')
         else:
             print(f"Something went wrong. Status code - {data.status_code}")
@@ -87,31 +87,32 @@ def get_all_links(link):
 
 
 def importing_html_files():
-    directory_path = f'/home/ruben/PycharmProjects/WebPagesAnalysis/{SITE_NAME}'
-    try:
+    folder_path = f'/home/ruben/PycharmProjects/WebPagesAnalysis'
+    directory_path = os.path.join(folder_path, SITE_NAME)
+    if not os.path.exists(directory_path):
         os.mkdir(directory_path)
-    except FileExistsError:
-        pass
-    conn = create_connection(DATABASE)
-    if conn is not None:
-        db_links = select_all_links(conn)
-        for link in db_links:
-            full_url = link[3] + link[2] + link[1]
-            with open(f'foodtime.am/web_page_{link[0]}.html', 'w') as f:
-                f.write(requests.get(full_url).text)
+        conn = create_connection(DATABASE)
+        if conn is not None:
+            db_links = select_all_links(conn)
+            for link in db_links:
+                full_url = link[3] + link[2] + link[1]
+                with open(f'foodtime.am/web_page_{link[0]}.html', 'w') as f:
+                    f.write(requests.get(full_url).text)
+    else:
+        print('Folder already exists')
 
 
-def write_csv(i, words_values):
-    directory_path = '/home/ruben/PycharmProjects/WebPagesAnalysis/word_rankings'
-    try:
-        os.mkdir(directory_path)
-    except FileExistsError:
-        pass
-    with open(f'word_rankings/word_ranking_for_page_{i}.csv', 'w') as f:
-        csv_writer = csv.writer(f, delimiter=",")
-        csv_writer.writerow(['word', 'rating'])
-        for key in words_values.keys():
-            csv_writer.writerow([key, words_values[key]])
+# def write_csv(i, words_values):
+#     directory_path = '/home/ruben/PycharmProjects/WebPagesAnalysis/word_rankings'
+#     try:
+#         os.mkdir(directory_path)
+#     except FileExistsError:
+#         pass
+#     with open(f'word_rankings/word_ranking_for_page_{i}.csv', 'w') as f:
+#         csv_writer = csv.writer(f, delimiter=",")
+#         csv_writer.writerow(['word', 'rating'])
+#         for key in words_values.keys():
+#             csv_writer.writerow([key, words_values[key]])
 
 
 def add_rankings_in_sql(i, words_values):
@@ -139,13 +140,15 @@ def analyse_html_page():
                     continue
                 soup = BeautifulSoup(text, 'html.parser')
                 for script in soup(["script", "style"]):
-                    script.extract()  # rip it out
+                    script.extract()
                 tag_texts = []
                 for tag in soup.find_all():
                     new_text = ""
                     for character in tag.text:
+                        # If character is a letter or a space
                         if character.isalpha() or character == " ":
                             new_text += character
+                    # If new_text contains anything different from space
                     if new_text.strip() != "":
                         new_text = new_text.split(" ")
                         new_text = [e for e in new_text if e != "" and e != ""]
@@ -165,23 +168,30 @@ def analyse_html_page():
                             words_values[word] += tag_coefficients_in_rating[key]
                         except KeyError:
                             words_values[word] = tag_coefficients_in_rating[key]
-                add_rankings_in_sql(i, words_values)
+                answer = select_ratings(conn, i)
+                if answer is None:
+                    add_rankings_in_sql(i, words_values)
+                else:
+                    print("Rankings are already added!")
 
 
 def main():
-    # conn = create_connection(DATABASE)
-    # if conn is not None:
-    #     create_table(conn, sql_create_links_table)
-    #
-    #     get_all_links({"protocol": SITE_PROTOCOL, "domain": SITE_NAME, "path": "/"})
-    #
-    #     print("Starting DB process")
-    #
-    #     for data in all_links:
-    #         link_data = (data.get('path'), data.get('domain'), data.get('protocol'))
-    #         lastrowid = create_link(conn, link_data)
-    #         print(lastrowid)
-    # importing_html_files()
+    conn = create_connection(DATABASE)
+    if conn is not None:
+        create_table(conn, sql_create_links_table)
+
+        get_all_links({"protocol": SITE_PROTOCOL, "domain": SITE_NAME, "path": "/"})
+
+        print("Starting DB process")
+        if select_all_links(conn) is None:
+            for data in all_links:
+                link_data = (data.get('path'), data.get('domain'), data.get('protocol'))
+                lastrowid = create_link(conn, link_data)
+                print(lastrowid)
+        else:
+            print("Links are already added!")
+
+    importing_html_files()
     analyse_html_page()
 
 
